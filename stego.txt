@@ -1,0 +1,73 @@
+8. OpenStego – Password-protected steganography
+This is the first practical part of your experiment. It is performed using the OpenStego GUI, not the Python scripts.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+5
+
+
+
+
+
+
+
+
+
+
+A. Hide a secret message
+Required files:
+- secret.txt – contains the message.
+- cover.jpg – carrier image.
+Create secret.txt containing:
+Hello, this is my hidden message.
+This is a steganography experiment.
+
+
+Follow these steps:
+1. Open OpenStego.
+2. Select Hide Data.
+3. Select secret.txt as the Message File.
+4. Select cover.jpg as the Cover File.
+5. Set the output file as stego.png.
+6. Select encryption algorithm AES128.
+7. Enter and confirm your password.
+8. Click Hide Data.
+The resulting stego.png contains your hidden message.
+B. Extract the secret message
+1. Open OpenStego.
+2. Select Extract Data.
+3. Select stego.png.
+4. Choose an output folder called recovered.
+5. Enter the correct password.
+6. Click Extract Data.
+In the terminal, verify:
+ls -lh recovered/
+cat recovered/secret.txt
+
+
+C. Test the wrong password
+Repeat the extraction with an incorrect password.
+
+Expected observation:
+Extraction failed:
+Embedded data corrupt OR invalid password OR no algorithm found
+
+
+This demonstrates password-protected extraction.

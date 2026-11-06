@@ -1,0 +1,295 @@
+Experiment_5_Steganography/
+│
+├── stego_lab.py
+├── run_lab.py
+├── run_video.py
+├── run_forensics.py
+│
+├── cover_image.png
+├── secret_image.png
+├── cover_video.mp4
+│
+├── encoded_image.png
+├── stego_image_bits1.png
+├── stego_image_bits2.png
+├── stego_image_bits4.png
+├── stego_image_bits7.png
+│
+└── recovered_secret_1.png
+    recovered_secret_2.png
+    recovered_secret_4.png
+    recovered_secret_7.png
+
+python -m pip install pillow numpy opencv-python
+python -c "import PIL, numpy, cv2; print('All libraries installed successfully')"
+
+
+-----stego_lab.py
+
+from PIL import Image
+import numpy as np
+import cv2
+import hashlib
+
+
+def encode_text(cover_path, message, out_path):
+    """Hide message in the LSBs of the cover image."""
+    pixels = np.array(Image.open(cover_path).convert("RGB"))
+    flat = pixels.flatten()
+
+    data = message.encode("utf-8")
+    header = len(data).to_bytes(4, "big")
+
+    bits = np.unpackbits(np.frombuffer(header + data, dtype=np.uint8))
+
+    if len(bits) > flat.size:
+        raise ValueError("Message is too long for this image. Use a bigger image!")
+
+    flat[:len(bits)] = (flat[:len(bits)] & 0xFE) | bits
+
+    Image.fromarray(flat.reshape(pixels.shape)).save(out_path)
+
+    print(f"Hidden {len(data)} bytes inside {out_path}")
+
+
+def decode_text(stego_path):
+    """Read the LSBs back and rebuild the message."""
+    flat = np.array(
+        Image.open(stego_path).convert("RGB")
+    ).flatten()
+
+    length = int.from_bytes(
+        np.packbits(flat[:32] & 1).tobytes(), "big"
+    )
+
+    bits = flat[32:32 + length * 8] & 1
+
+    return np.packbits(bits).tobytes().decode("utf-8")
+
+
+def hide_image(cover_path, secret_path, out_path, bits=4):
+    """Put the top bits of the secret into the low bits of the cover."""
+    cover = Image.open(cover_path).convert("RGB")
+    secret = Image.open(secret_path).convert("RGB").resize(cover.size)
+
+    c, s = np.array(cover), np.array(secret)
+
+    keep_mask = (0xFF << bits) & 0xFF
+
+    stego = (c & keep_mask) | (s >> (8 - bits))
+
+    Image.fromarray(stego.astype(np.uint8)).save(out_path)
+
+    print(f"Secret image hidden in {out_path} (using {bits} bits per colour)")
+
+
+def reveal_image(stego_path, out_path, bits=4):
+    """Pull the low bits out and stretch them back to full brightness."""
+    st = np.array(
+        Image.open(stego_path).convert("RGB")
+    )
+
+    secret = (st & ((1 << bits) - 1)) << (8 - bits)
+
+    Image.fromarray(secret.astype(np.uint8)).save(out_path)
+
+    print(f"Secret image recovered -> {out_path}")
+
+
+def hide_in_video(video_in, secret_path, video_out, bits=4, codec="FFV1"):
+    cap = cv2.VideoCapture(video_in)
+
+    w, h = int(cap.get(3)), int(cap.get(4))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+
+    secret = cv2.resize(cv2.imread(secret_path), (w, h))
+
+    out = cv2.VideoWriter(
+        video_out,
+        cv2.VideoWriter_fourcc(*codec),
+        fps,
+        (w, h)
+    )
+
+    keep_mask = (0xFF << bits) & 0xFF
+
+    first = True
+
+    while True:
+        ok, frame = cap.read()
+
+        if not ok:
+            break
+
+        if first:
+            frame = (frame & keep_mask) | (secret >> (8 - bits))
+            first = False
+
+        out.write(frame)
+
+    cap.release()
+    out.release()
+
+    print(f"Secret hidden in first frame of {video_out}")
+
+
+def reveal_from_video(video_path, out_path, bits=4):
+    cap = cv2.VideoCapture(video_path)
+
+    ok, frame = cap.read()
+
+    cap.release()
+
+    if not ok:
+        raise RuntimeError("Could not read the video")
+
+    secret = (frame & ((1 << bits) - 1)) << (8 - bits)
+
+    cv2.imwrite(out_path, secret.astype(np.uint8))
+
+    print(f"Secret recovered -> {out_path}")
+
+
+def sha256_file(path):
+    """Calculate the SHA-256 hash of a file."""
+    digest = hashlib.sha256()
+
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(chunk)
+
+    return digest.hexdigest()
+
+
+def compare_images(original_path, modified_path, prefix="diff"):
+    """Calculate pixel MSE and save a visual difference map."""
+    a = np.array(
+        Image.open(original_path).convert("RGB"),
+        dtype=np.int16
+    )
+
+    b = np.array(
+        Image.open(modified_path).convert("RGB"),
+        dtype=np.int16
+    )
+
+    if a.shape != b.shape:
+        raise ValueError("Images must have identical dimensions.")
+
+    difference = np.abs(a - b)
+
+    diff_map = np.clip(
+        difference.max(axis=2) * 8,
+        0,
+        255
+    ).astype(np.uint8)
+
+    Image.fromarray(diff_map).save(f"{prefix}_map.png")
+
+    mse = float(
+        np.mean((a.astype(float) - b.astype(float)) ** 2)
+    )
+
+    normalized_mse_percent = mse / (255.0 ** 2) * 100.0
+
+    exact_pixel_match = float(
+        np.mean(np.all(a == b, axis=2)) * 100.0
+    )
+
+    changed_pixels = int(
+        np.count_nonzero(np.any(a != b, axis=2))
+    )
+
+    print("Changed pixels:", changed_pixels)
+    print(f"Exact pixel match: {exact_pixel_match:.4f}%")
+    print(f"Raw MSE: {mse:.6f}")
+    print(f"Normalized MSE: {normalized_mse_percent:.6f}%")
+    print(f"Difference map: {prefix}_map.png")
+
+    return mse, normalized_mse_percent, exact_pixel_match
+
+-----------run_lab.py
+
+from stego_lab import *
+
+encode_text(
+    "cover_image.png",
+    "Hello, this is a hidden message!",
+    "encoded_image.png"
+)
+
+print("Hidden message:", decode_text("encoded_image.png"))
+
+
+for bits in (1, 2, 4, 7):
+    stego_file = f"stego_image_bits{bits}.png"
+    recovered_file = f"recovered_secret_{bits}.png"
+
+    hide_image(
+        "cover_image.png",
+        "secret_image.png",
+        stego_file,
+        bits=bits
+    )
+
+    reveal_image(
+        stego_file,
+        recovered_file,
+        bits=bits
+    )
+
+    compare_images(
+        "cover_image.png",
+        stego_file,
+        prefix=f"cover_stego_{bits}"
+    )
+
+--------------- run_video.py
+
+from stego_lab import *
+
+# Lossless (recommended)
+hide_in_video(
+    "cover_video.mp4",
+    "secret_image.png",
+    "encoded_video.avi",
+    bits=4,
+    codec="FFV1"
+)
+
+reveal_from_video(
+    "encoded_video.avi",
+    "extracted_image.png",
+    bits=4
+)
+
+
+# Lossy comparison
+hide_in_video(
+    "cover_video.mp4",
+    "secret_image.png",
+    "lossy_video.avi",
+    bits=4,
+    codec="mp4v"
+)
+
+reveal_from_video(
+    "lossy_video.avi",
+    "lossy_extracted.png",
+    bits=4
+)
+
+
+-------------- run_forensics.py
+
+from stego_lab import *
+
+for filename in ("cover_image.png", "encoded_image.png"):
+    print(filename, "SHA-256:", sha256_file(filename))
+
+compare_images(
+    "cover_image.png",
+    "encoded_image.png",
+    prefix="text_stego"
+)
+
