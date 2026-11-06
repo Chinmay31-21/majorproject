@@ -1,0 +1,43 @@
+import ipaddress
+import urllib.request
+
+def get_public_ip():
+    urls = [
+        "https://api.ipify.org",
+        "https://icanhazip.com",
+        "https://ifconfig.me"
+    ]
+
+    for url in urls:
+        try:
+            with urllib.request.urlopen(url, timeout=5) as response:
+                return str(ipaddress.IPv4Address(
+                    response.read().decode().strip()
+                ))
+        except Exception:
+            continue
+
+    return "Unable to retrieve public IP"
+
+private_ip = input("Enter Private IP Address: ")
+mac = input("Enter MAC Address: ")
+
+try:
+    ip = ipaddress.IPv4Address(private_ip)
+
+    if not any(ip in network for network in [
+        ipaddress.ip_network("10.0.0.0/8"),
+        ipaddress.ip_network("172.16.0.0/12"),
+        ipaddress.ip_network("192.168.0.0/16")
+    ]):
+        print("Warning: The entered IP is not an RFC 1918 private IP.")
+
+    public_ip = get_public_ip()
+
+    print("\n----- NAT Mapping -----")
+    print("Private IP:", private_ip)
+    print("MAC Address:", mac)
+    print("Public IP:", public_ip)
+
+except ipaddress.AddressValueError:
+    print("Invalid Private IP Address")

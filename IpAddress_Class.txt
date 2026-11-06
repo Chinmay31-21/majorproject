@@ -1,0 +1,39 @@
+import ipaddress
+
+classes = [
+    (0, 127, "Class A", "0", "255.0.0.0", 8, "10.0.0.0 - 10.255.255.255"),
+    (128, 191, "Class B", "10", "255.255.0.0", 16, "172.16.0.0 - 172.31.255.255"),
+    (192, 223, "Class C", "110", "255.255.255.0", 24, "192.168.0.0 - 192.168.255.255"),
+    (224, 252, "Class D", "1110", "N/A", 0, "N/A"),
+    (252, 255, "Class E", "1111", "N/A", 0, "N/A")
+]
+
+ip = input("Enter IPv4 Address : ");
+
+try :
+  address = ipaddress.IPv4Address(ip)
+  octet = int(ip.split(".")[0])
+
+  for start, end, name, bits, mask, prefix, private in classes :
+    if start <= octet <= end :
+      print("Class Type : ", name)
+      print("Priority bits : ", bits)
+      print("Subnet Mask : ", mask)
+      print("Private Address Range : ", private)
+
+      if prefix is not None :
+        host_bits = 32 - prefix
+        host = (2 ** host_bits) - 2
+        print("Number of Network Bits : ", prefix)
+        print("Number of Host Bits : ", host_bits)
+        print("Number of Hosts : ", host)
+
+      else :
+        print("Number of Network Bits : N/A")
+        print("Number of Host Bits : N/A")
+
+      print("Private Address :", "Yes" if address.is_private else "No")
+      break
+
+except ipaddress.AddressValueError :
+  print("Invalid IPv4 Address")

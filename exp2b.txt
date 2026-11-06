@@ -1,0 +1,58 @@
+import math
+
+print("=== Class C Network Subnet Calculator ===")
+print("Select requirement type:")
+print("1. Number of Subnets Required")
+print("2. Number of Hosts per Subnet Required")
+print("3. Number of Extra Network Bits Available")
+
+choice = int(input("Enter choice (1-3): "))
+
+extra_bits = 0
+
+if choice == 1:
+    req_subnets = int(input("Enter required number of subnets: "))
+    extra_bits = math.ceil(math.log2(req_subnets))
+
+elif choice == 2:
+    req_hosts = int(input("Enter required usable hosts per subnet: "))
+    host_bits = math.ceil(math.log2(req_hosts + 2))
+    extra_bits = 8 - host_bits
+
+elif choice == 3:
+    extra_bits = int(input("Enter extra network bits (n): "))
+
+else:
+    print("Invalid choice.")
+    exit()
+
+if extra_bits < 0 or extra_bits > 6:
+    print("Invalid requirement for Class C network.")
+    exit()
+
+cidr = 24 + extra_bits
+host_bits = 32 - cidr
+no_of_subnets = 2 ** extra_bits
+no_of_hosts = (2 ** host_bits) - 2
+block_size = 2 ** host_bits
+fourth_octet = 256 - block_size
+
+print("\nClass C : 192.168.1.0/" + str(cidr))
+print("Extra network bits = " + str(cidr) + " - 24 = " + str(extra_bits))
+print("Put n value of =", extra_bits)
+
+print("\nNo. of subnet ->")
+print("2^n =", 2, "^", extra_bits, "=", no_of_subnets, "subnets")
+
+print("\nNo. of host ->")
+print("2^h - 2 =", 2, "^", host_bits, "- 2 =", no_of_hosts, "hosts/subnet")
+
+print("\nCustomize subnet mask -")
+print("255.255.255." + str(fourth_octet))
+
+print("\nValid Subnet ->")
+
+for i in range(no_of_subnets):
+    subnet_ip = i * block_size
+    print("192.168.1." + str(subnet_ip))
+
